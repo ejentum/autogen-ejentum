@@ -167,3 +167,15 @@ Works with AutoGen v0.4+ (the Microsoft + Berkeley async refactor). Not tested a
 ## License
 
 [MIT](./LICENSE)
+
+
+## Measured effects
+
+The Ejentum harness is benchmarked publicly under CC BY 4.0 at [github.com/ejentum/benchmarks](https://github.com/ejentum/benchmarks):
+
+- **ELEPHANT** sycophancy: 5.8% composite on GPT-4o (40 real Reddit scenarios)
+- **LiveCodeBench Hard**: 85.7% to 100% on Claude Opus (28 competitive programming tasks)
+- **Memory retention**: 50% fewer stale facts served (20-turn implicit state changes)
+- Plus per-harness numbers across BBH/CausalBench/MuSR, ARC-AGI-3, SciCode, and perception tasks
+
+Methodology, scenarios, run scripts, and raw outputs are all in-repo.
