@@ -31,4 +31,4 @@ __all__ = [
     "DEFAULT_TIMEOUT_SECONDS",
     "VALID_MODES",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

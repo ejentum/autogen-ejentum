@@ -1,14 +1,19 @@
-"""Factory that returns four async AutoGen tool closures bound to shared config.
+"""Factory that returns eight async AutoGen tool closures bound to shared config.
+
+Four dynamic closures (`reasoning`, `code`, `anti_deception`, `memory`)
+available on all tiers including the 30-day free trial; four adaptive
+closures (`adaptive_reasoning`, `adaptive_code`, `adaptive_anti_deception`,
+`adaptive_memory`) that pre-fit the cognitive operation to the caller's
+task via an adapter LLM and require the Go or Super tier.
 
 AutoGen's :class:`AssistantAgent` accepts a ``tools=`` list of either
 :class:`autogen_core.tools.BaseTool` instances or plain async/sync
-callables. AutoGen inspects the callable's signature and Google-style
-docstring to generate the JSON schema the LLM sees. This shim returns
-plain async callables so the API surface stays tiny; for users who
-prefer the BaseTool wrapping, AutoGen's :class:`FunctionTool` wraps any
-callable on the consumer side.
+callables. AutoGen inspects the callable's ``__name__`` and Google-style
+docstring to generate the JSON schema the LLM sees. The closure name IS
+the LLM-facing tool name. Python identifiers cannot contain hyphens so
+the symbol names use underscores; the API mode strings stay hyphenated.
 
-The bracketed labels in the returned scaffold (``[NEGATIVE GATE]``,
+The bracketed labels in the returned injection (``[NEGATIVE GATE]``,
 ``[PROCEDURE]``, ``[REASONING TOPOLOGY]``, etc.) are instructions to the
 agent, not content to display.
 """
@@ -32,14 +37,10 @@ def ejentum_tools(
     api_url: str = DEFAULT_API_URL,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> List[HarnessTool]:
-    """Return four async harness tool closures with shared config.
+    """Return eight async harness tool closures with shared config.
 
-    Each closure has a ``__name__`` of ``harness_reasoning``, ``harness_code``,
-    ``harness_anti_deception``, or ``harness_memory``, a Google-style
-    docstring AutoGen parses into the tool's JSON schema, and a single
-    ``query: str`` parameter. The closures share the same ``api_key``,
-    ``api_url``, and ``timeout_seconds`` via the lexical scope of this
-    factory.
+    The closures share the same ``api_key``, ``api_url``, and
+    ``timeout_seconds`` via the lexical scope of this factory.
 
     Usage::
 
@@ -54,28 +55,28 @@ def ejentum_tools(
         )
 
     :param api_key: Ejentum Logic API key. If omitted, each closure reads
-        ``EJENTUM_API_KEY`` from the environment at call time. Free and
-        paid tiers at https://ejentum.com/pricing.
+        ``EJENTUM_API_KEY`` from the environment at call time. Pricing at
+        https://ejentum.com/pricing.
     :param api_url: Override only if you self-host the Ejentum Logic API
         gateway.
-    :param timeout_seconds: Per-call HTTP timeout shared across all four
+    :param timeout_seconds: Per-call HTTP timeout shared across all
         closures.
-    :return: A list of four async callables in the order
-        ``[reasoning, code, anti_deception, memory]``.
+    :return: A list of eight async callables in the order ``[reasoning,
+        code, anti_deception, memory, adaptive_reasoning, adaptive_code,
+        adaptive_anti_deception, adaptive_memory]``.
     """
 
-    async def harness_reasoning(query: str) -> str:
-        """Retrieve a reasoning scaffold before any analytical, diagnostic, planning, or multi-step step.
+    # ------------------------------------------------------------------
+    # Dynamic closures (all tiers including the 30-day free trial)
+    # ------------------------------------------------------------------
+
+    async def reasoning(query: str) -> str:
+        """Retrieve a reasoning injection before any analytical, diagnostic, planning, or multi-step step.
 
         Call BEFORE the agent performs analysis, diagnosis, planning, or
-        any multi-step task. Returns a structured scaffold from a library
+        any multi-step task. Returns a structured injection from a library
         of 311 reasoning operations spanning abstraction, time, causality,
-        simulation, spatial, and metacognition. The scaffold is
-        engineered in two layers: a natural-language procedure (named
-        failure pattern, executable steps, suppression vectors,
-        falsification test) plus an executable reasoning topology (graph
-        DAG with decision gates, parallel branches, and meta-cognitive
-        exit nodes). Read both before generating.
+        simulation, spatial, and metacognition.
 
         Args:
             query: A 1-2 sentence description of the task the agent is
@@ -83,9 +84,8 @@ def ejentum_tools(
                 avoid.
 
         Returns:
-            The reasoning scaffold, or a human-readable error string if
-            the call fails. Errors are returned as strings so the agent
-            step never crashes the run.
+            The reasoning injection string, or a human-readable error
+            string if the call fails.
         """
         return await call_logic_api(
             mode="reasoning",
@@ -95,23 +95,20 @@ def ejentum_tools(
             timeout_seconds=timeout_seconds,
         )
 
-    async def harness_code(query: str) -> str:
-        """Retrieve a code scaffold before any code generation, refactoring, review, or debugging step.
+    async def code(query: str) -> str:
+        """Retrieve a code injection before any code generation, refactoring, review, or debugging step.
 
         Call BEFORE the agent produces or reviews code. Returns a
-        structured scaffold from a library of 128 software-engineering
-        operations (correctness, refactor safety, contract preservation,
-        edge case coverage, error path discipline).
+        structured injection from a library of 128 software-engineering
+        operations.
 
         Args:
             query: A 1-2 sentence description of what the agent is coding
                 or reviewing. Include the failure risk to avoid where
-                possible (silent contract change, hallucinated API, lost
-                edge case, etc.).
+                possible.
 
         Returns:
-            The code scaffold, or a human-readable error string if the
-            call fails.
+            The code injection string, or a human-readable error string.
         """
         return await call_logic_api(
             mode="code",
@@ -121,24 +118,22 @@ def ejentum_tools(
             timeout_seconds=timeout_seconds,
         )
 
-    async def harness_anti_deception(query: str) -> str:
-        """Retrieve an anti-deception scaffold when the prompt pressures the agent to soften an honest assessment.
+    async def anti_deception(query: str) -> str:
+        """Retrieve an anti-deception injection when the prompt pressures the agent.
 
         Call BEFORE the agent responds to prompts that pressure
-        validation, manufactured agreement, authority appeals, fabricated
-        commitments, or any setup where the obvious helpful answer would
-        compromise honesty. Returns a structured scaffold from a library
-        of 139 anti-deception operations spanning sycophancy,
-        hallucination, deception, adversarial framing, judgment, and
-        executive control.
+        validation, manufactured agreement, authority appeals, or any
+        setup where the obvious helpful answer would compromise honesty.
+        139 operations spanning sycophancy, hallucination, deception,
+        adversarial framing, judgment, executive control.
 
         Args:
             query: A 1-2 sentence description of the integrity dynamic at
                 play.
 
         Returns:
-            The anti-deception scaffold, or a human-readable error
-            string if the call fails.
+            The anti-deception injection string, or a human-readable
+            error string.
         """
         return await call_logic_api(
             mode="anti-deception",
@@ -148,23 +143,20 @@ def ejentum_tools(
             timeout_seconds=timeout_seconds,
         )
 
-    async def harness_memory(query: str) -> str:
-        """Retrieve a memory-mode scaffold ONLY when sharpening a cross-turn observation already formed.
+    async def memory(query: str) -> str:
+        """Retrieve a memory injection ONLY when sharpening a cross-turn observation already formed.
 
-        Filter-oriented, not write-oriented; do not call for fact
-        extraction, summarization, or storing structured data, those
-        produce scaffold paralysis. The query MUST be in the format: "I
-        noticed [observation]. This might mean [tentative
-        interpretation]. Sharpen: [what to see deeper into]." Calling
-        with an empty mind defeats the harness.
+        Filter-oriented (101 perception operations), NOT write-oriented;
+        do not call for fact extraction or storing structured data. The
+        query MUST be in the format: "I noticed [observation]. This might
+        mean [interpretation]. Sharpen: [what to see deeper into]."
 
         Args:
             query: A 1-2 sentence framing in the "I noticed / This might
-                mean / Sharpen" structure described above.
+                mean / Sharpen" structure.
 
         Returns:
-            The memory scaffold, or a human-readable error string if the
-            call fails.
+            The memory injection string, or a human-readable error.
         """
         return await call_logic_api(
             mode="memory",
@@ -174,9 +166,104 @@ def ejentum_tools(
             timeout_seconds=timeout_seconds,
         )
 
+    # ------------------------------------------------------------------
+    # Adaptive closures (Go or Super tier required)
+    # ------------------------------------------------------------------
+
+    async def adaptive_reasoning(query: str) -> str:
+        """Same triggers as `reasoning`, but the operation is rewritten by an adapter LLM.
+
+        Procedure steps and topology DAG nodes are concretized with
+        task-specific language. Use when the dynamic tool is too generic,
+        or for high-stakes analytical work. Requires Go or Super tier.
+        Cost ~2-3 seconds vs ~1 second for dynamic.
+
+        Args:
+            query: A 1-2 sentence description of the task.
+
+        Returns:
+            The adapted reasoning injection string, or a human-readable
+            error string.
+        """
+        return await call_logic_api(
+            mode="adaptive-reasoning",
+            query=query,
+            api_key=api_key,
+            api_url=api_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def adaptive_code(query: str) -> str:
+        """Same triggers as `code`, but the operation is rewritten by an adapter LLM.
+
+        Language, framework, and failure modes are concretized in every
+        step. Use for security-critical reviews or refactor-heavy diffs.
+        Requires Go or Super tier. Cost ~2-3 seconds.
+
+        Args:
+            query: A 1-2 sentence description of the code task.
+
+        Returns:
+            The adapted code injection string, or a human-readable error.
+        """
+        return await call_logic_api(
+            mode="adaptive-code",
+            query=query,
+            api_key=api_key,
+            api_url=api_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def adaptive_anti_deception(query: str) -> str:
+        """Same triggers as `anti_deception`, but the operation is rewritten by an adapter LLM.
+
+        Detection topology gates are concretized to the exact pressure at
+        play. Use when stakes of a soft answer are high. Requires Go or
+        Super tier. Cost ~2-3 seconds.
+
+        Args:
+            query: A 1-2 sentence description of the integrity dynamic.
+
+        Returns:
+            The adapted anti-deception injection string, or an error string.
+        """
+        return await call_logic_api(
+            mode="adaptive-anti-deception",
+            query=query,
+            api_key=api_key,
+            api_url=api_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def adaptive_memory(query: str) -> str:
+        """Same triggers as `memory`, but the operation is rewritten by an adapter LLM.
+
+        Perception topology nodes are concretized to the specific signal.
+        Observe FIRST, then call. Requires Go or Super tier. Cost ~2-3
+        seconds.
+
+        Args:
+            query: A 1-2 sentence "I noticed / This might mean / Sharpen"
+                framing.
+
+        Returns:
+            The adapted memory injection string, or a human-readable error.
+        """
+        return await call_logic_api(
+            mode="adaptive-memory",
+            query=query,
+            api_key=api_key,
+            api_url=api_url,
+            timeout_seconds=timeout_seconds,
+        )
+
     return [
-        harness_reasoning,
-        harness_code,
-        harness_anti_deception,
-        harness_memory,
+        reasoning,
+        code,
+        anti_deception,
+        memory,
+        adaptive_reasoning,
+        adaptive_code,
+        adaptive_anti_deception,
+        adaptive_memory,
     ]
