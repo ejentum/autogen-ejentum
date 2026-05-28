@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 
 
-DEFAULT_API_URL = "https://api.ejentum.com/harness"
+DEFAULT_API_URL = "https://api.ejentum.com/harness/"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
 VALID_MODES = frozenset(
