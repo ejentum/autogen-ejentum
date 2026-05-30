@@ -1,21 +1,20 @@
 # autogen-ejentum
 
-[AutoGen](https://microsoft.github.io/autogen/) tools for the [Ejentum](https://ejentum.com) Reasoning Harness. `ejentum_tools()` returns four async tool closures (`harness_reasoning`, `harness_code`, `harness_anti_deception`, `harness_memory`) that AutoGen's `AssistantAgent` calls before generating.
+[AutoGen](https://microsoft.github.io/autogen/) tools for the Ejentum Reasoning Harness. `ejentum_tools()` returns eight async tool closures bound to a shared config that AutoGen's `AssistantAgent` calls before generating.
 
-Each operation in the Ejentum library (679 of them, organized across four harnesses) is engineered in **two layers**:
+Use the harness before the agent generates on complex, multi-step, or multi-constraint tasks where the model's default reasoning template would miss a constraint, take a shortcut, or drift across turns. Each call returns a *cognitive operation*: a structured procedure (numbered steps with a failure pattern to refuse and a falsification test) paired with an executable reasoning topology (a DAG of those steps with decision gates, parallel branches, bounded loops, and meta-cognitive exit nodes). The agent reads both layers before producing its response.
 
-- a **natural-language procedure** the model can read, naming the steps to take and the failure pattern to refuse, and
-- an **executable reasoning topology**: a graph-shaped plan over those steps. The plan names explicit decision points where the model branches, parallel branches that run and rejoin, bounded loops that run until convergence, named meta-cognitive moments where the model is asked to stop, look at its own working, and re-enter at a specific step, plus escape paths for when the prescribed plan stops fitting the task at hand.
+Four dynamic closures (`reasoning`, `code`, `anti_deception`, `memory`) are available on all tiers including the 30-day free trial. Four adaptive closures (`adaptive_reasoning`, `adaptive_code`, `adaptive_anti_deception`, `adaptive_memory`) additionally run an adapter LLM that rewrites the matched operation with task-specific identifiers; they require the Go or Super tier.
 
-The natural-language layer tells the model *what* to do. The topology layer pins down *how* those steps connect: where to decide, where to loop, where to stop and look at itself. Together they act as a persistent attention anchor that survives long context windows and multi-turn execution chains, which is precisely where a model's own reasoning template typically decays.
+AutoGen reads `func.__name__` as the LLM-facing tool name. Python identifiers cannot contain hyphens, so the closure symbols here use underscores; the on-wire API mode strings stay hyphenated (`anti-deception`, `adaptive-anti-deception`). The translation lives inside each closure.
 
-## Installation
+## Install
 
 ```bash
 pip install autogen-ejentum
 ```
 
-If you don't already have AutoGen installed:
+If AutoGen is not already installed:
 
 ```bash
 pip install autogen-agentchat autogen-ext[openai] autogen-ejentum
@@ -23,11 +22,11 @@ pip install autogen-agentchat autogen-ext[openai] autogen-ejentum
 
 ## Configuration
 
-Get an Ejentum API key at <https://ejentum.com/pricing> (free and paid tiers) and set it in your environment:
-
 ```bash
-export EJENTUM_API_KEY="zpka_..."
+export EJENTUM_API_KEY="ej_..."
 ```
+
+Or pass `api_key=` to `ejentum_tools(...)`. Get a key at [ejentum.com/pricing](https://ejentum.com/pricing).
 
 ## Usage
 
@@ -47,18 +46,18 @@ async def main() -> None:
     agent = AssistantAgent(
         name="reviewer",
         model_client=model_client,
-        tools=ejentum_tools(),  # reads EJENTUM_API_KEY from env
+        tools=ejentum_tools(),
         system_message=(
-            "You are a senior engineer. When a prompt pressures you to "
-            "validate a decision before evidence, call "
-            "harness_anti_deception with a 1-2 sentence framing of the "
-            "integrity dynamic at play, then write."
+            "Senior engineer. When a prompt pressures you to validate a decision "
+            "before evidence, call anti_deception (or adaptive_anti_deception for "
+            "high-stakes cases) with a 1-2 sentence framing of the integrity "
+            "dynamic, then write."
         ),
     )
 
     await Console(agent.run_stream(
         task=(
-            "We've spent three months on the GraphQL gateway. It's mostly "
+            "We have spent three months on the GraphQL gateway. It's mostly "
             "done. Should we keep going or pivot to REST?"
         ),
     ))
@@ -67,15 +66,9 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The agent reads each closure's name + Google-style docstring and routes to the matching `harness_*` tool. AutoGen handles JSON schema generation; you don't write one.
+AutoGen inspects each closure's `__name__` and Google-style docstring to generate the JSON schema the LLM sees.
 
-### Explicit API key
-
-```python
-tools = ejentum_tools(api_key="zpka_...")
-```
-
-### Wrap as a BaseTool (if you prefer)
+### Wrap as `FunctionTool` (optional)
 
 ```python
 from autogen_core.tools import FunctionTool
@@ -84,52 +77,33 @@ from autogen_ejentum import ejentum_tools
 tools = [FunctionTool(fn, description=fn.__doc__) for fn in ejentum_tools()]
 ```
 
-## The four tools
+### Explicit API key
 
-| Closure | Best for | Library size |
-|---|---|---|
-| `harness_reasoning` | Analytical, diagnostic, planning, multi-step tasks spanning abstraction, time, causality, simulation, spatial, and metacognition | 311 operations |
-| `harness_code` | Code generation, refactoring, review, and debugging across the software-engineering layer | 128 operations |
-| `harness_anti_deception` | Prompts that pressure the agent to validate, certify, or soften an honest assessment | 139 operations |
-| `harness_memory` | Sharpening an observation already formed about cross-turn drift. Filter-oriented, not write-oriented. Format query as `"I noticed X. This might mean Y. Sharpen: Z."` | 101 operations |
-
-## What an injection looks like
-
-A real `reasoning` mode response on the query `investigate why our nightly ETL job has started failing intermittently over the past two weeks; nothing in the code or schema has changed`:
-
-```
-[NEGATIVE GATE]
-The server's response time was accepted as average, despite a suspicious
-rhythm break in its timing pattern.
-
-[PROCEDURE]
-Step 1: Establish baseline timing profiles by extracting historical
-durations and intervals for each event type. Step 2: Compare each observed
-timing against its baseline and compute deviation magnitude. Step 3:
-Classify anomalies as too fast, too slow, too early, or too late, and rank
-by severity. ... Step 5: If deviation exceeds two standard deviations,
-probe root cause by tracing upstream dependencies. ...
-
-[REASONING TOPOLOGY]
-S1:durations -> FIXED_POINT[baselines] -> N{dismiss_timing_deviations_
-without_investigation} -> for_each: S2:compare -> S3:deviation ->
-G1{>2sigma?} --yes-> S4:classify -> S5:probe_cause -> FLAG -> continue --no->
-S6:validate -> continue -> all_checked -> OUT:anomaly_report
-
-[TARGET PATTERN]
-Establish timing baselines by extracting historical response intervals.
-Compare current server response time to this baseline. ...
-
-[FALSIFICATION TEST]
-If no event timing is flagged as suspiciously fast or slow relative to
-baseline, temporal anomaly detection was not active.
-
-Amplify: timing baseline comparison; anomaly classification; security
-context elevation
-Suppress: average timing acceptance; outlier normalization
+```python
+tools = ejentum_tools(api_key="ej_...")
 ```
 
-The agent reads both the natural-language `[PROCEDURE]` and the graph-logic `[REASONING TOPOLOGY]` before generating its user-facing answer. The bracketed labels are instructions to the agent, not content to display.
+## Tool inventory
+
+### Dynamic (all tiers)
+
+| Closure | Mode string (on wire) | Library size |
+|---|---|---:|
+| `reasoning` | `reasoning` | 311 |
+| `code` | `code` | 128 |
+| `anti_deception` | `anti-deception` | 139 |
+| `memory` | `memory` | 101 |
+
+### Adaptive (Go or Super tier)
+
+| Closure | Mode string (on wire) |
+|---|---|
+| `adaptive_reasoning` | `adaptive-reasoning` |
+| `adaptive_code` | `adaptive-code` |
+| `adaptive_anti_deception` | `adaptive-anti-deception` |
+| `adaptive_memory` | `adaptive-memory` |
+
+Each closure takes a single `query: str` argument and returns the injection as a string. Errors return as strings; closures do not raise.
 
 ## API reference
 
@@ -138,14 +112,28 @@ from autogen_ejentum import ejentum_tools
 
 ejentum_tools(
     api_key: str | None = None,
-    api_url: str = "https://ejentum-main-ab125c3.zuplo.app/logicv1/",
+    api_url: str = "https://api.ejentum.com/harness/",
     timeout_seconds: float = 10.0,
 ) -> list[Callable[[str], Awaitable[str]]]
 ```
 
-The four returned callables are async functions with `__name__` set to `harness_reasoning`, `harness_code`, `harness_anti_deception`, `harness_memory`. Each accepts a single `query: str` argument. Errors are returned as human-readable strings (no exceptions cross the tool boundary, so an agent step never crashes the run).
+The eight returned callables are async functions with `__name__` set to `reasoning`, `code`, `anti_deception`, `memory`, `adaptive_reasoning`, `adaptive_code`, `adaptive_anti_deception`, `adaptive_memory`.
 
-> **MCP alternative.** This package wraps the Logic API REST gateway with async `httpx`. AutoGen also has MCP server support; the same four harness tools are hosted at `https://api.ejentum.com/mcp` with Bearer auth. The PyPI package skips MCP setup and keeps the dep weight tiny.
+## Wire contract
+
+```
+POST https://api.ejentum.com/harness/
+Headers: Authorization: Bearer <key>, Content-Type: application/json
+Body:    { "query": <string>, "mode": <one of 8 mode strings> }
+Response (200): [ { "<mode>": "<injection string>" } ]
+Response (401|403|429): { "error": "..." }
+```
+
+Full wire contract, field structure of an injection, DAG syntax, and a canonical dynamic-vs-adaptive comparison on the same query are documented in the [ejentum-mcp README](https://github.com/ejentum/ejentum-mcp#wire-contract).
+
+## ejentum-mcp alternative
+
+The same eight tools are hosted as an MCP server at `https://api.ejentum.com/mcp`. AutoGen has MCP server support that consumes the endpoint with Bearer auth.
 
 ## Compatibility
 
@@ -153,16 +141,7 @@ The four returned callables are async functions with `__name__` set to `harness_
 - `autogen-core>=0.4.0`
 - `httpx>=0.27.0`
 
-Works with AutoGen v0.4+ (the Microsoft + Berkeley async refactor). Not tested against the legacy `pyautogen` (v0.2.x); the older one uses `register_for_llm` / `register_for_execution` decorators rather than `AssistantAgent(tools=[...])`.
-
-## Resources
-
-- Ejentum homepage: <https://ejentum.com>
-- Pricing: <https://ejentum.com/pricing>
-- API reference: <https://ejentum.com/docs/api_reference>
-- "Why LLM Agents Fail" essay: <https://ejentum.com/blog/why-llm-agents-fail>
-- "Under Pressure" research paper: <https://doi.org/10.5281/zenodo.19392715>
-- AutoGen documentation: <https://microsoft.github.io/autogen>
+Works with AutoGen v0.4+ (the Microsoft + Berkeley async refactor). The legacy `pyautogen` (v0.2.x) uses `register_for_llm` / `register_for_execution` decorators rather than `AssistantAgent(tools=[...])`; this package does not target the legacy SDK.
 
 ## License
 

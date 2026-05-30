@@ -12,10 +12,21 @@ from typing import Optional
 import httpx
 
 
-DEFAULT_API_URL = "https://ejentum-main-ab125c3.zuplo.app/logicv1/"
+DEFAULT_API_URL = "https://api.ejentum.com/harness/"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
-VALID_MODES = frozenset({"reasoning", "code", "anti-deception", "memory"})
+VALID_MODES = frozenset(
+    {
+        "reasoning",
+        "code",
+        "anti-deception",
+        "memory",
+        "adaptive-reasoning",
+        "adaptive-code",
+        "adaptive-anti-deception",
+        "adaptive-memory",
+    }
+)
 
 
 async def call_logic_api(
@@ -38,7 +49,9 @@ async def call_logic_api(
     if mode not in VALID_MODES:
         return (
             f"Ejentum harness call failed: 'mode' must be one of "
-            f"reasoning|code|anti-deception|memory, got '{mode}'."
+            f"reasoning|code|anti-deception|memory|adaptive-reasoning|"
+            f"adaptive-code|adaptive-anti-deception|adaptive-memory, "
+            f"got '{mode}'."
         )
 
     resolved_key = api_key or os.environ.get("EJENTUM_API_KEY")

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autogen-ejentum"
-version = "0.1.0"
-description = "AutoGen tools for the Ejentum Reasoning Harness. Four agent-callable async functions (harness_reasoning, harness_code, harness_anti_deception, harness_memory) returned by ejentum_tools(api_key=...). Each call retrieves a task-matched cognitive operation engineered in two layers: a natural-language procedure plus an executable reasoning topology."
+version = "0.2.0"
+description = "AutoGen tools for the Ejentum Reasoning Harness. Eight agent-callable async functions returned by ejentum_tools(api_key=...): four dynamic (reasoning, code, anti_deception, memory) and four adaptive (adaptive_reasoning, adaptive_code, adaptive_anti_deception, adaptive_memory) that pre-fit the operation to the task via an adapter LLM. Each call retrieves a structured cognitive injection: a natural-language procedure plus an executable reasoning topology."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = "MIT"
