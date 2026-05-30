@@ -2,6 +2,8 @@
 
 [AutoGen](https://microsoft.github.io/autogen/) tools for the Ejentum Reasoning Harness. `ejentum_tools()` returns eight async tool closures bound to a shared config that AutoGen's `AssistantAgent` calls before generating.
 
+Use the harness before the agent generates on complex, multi-step, or multi-constraint tasks where the model's default reasoning template would miss a constraint, take a shortcut, or drift across turns. Each call returns a *cognitive operation*: a structured procedure (numbered steps with a failure pattern to refuse and a falsification test) paired with an executable reasoning topology (a DAG of those steps with decision gates, parallel branches, bounded loops, and meta-cognitive exit nodes). The agent reads both layers before producing its response.
+
 Four dynamic closures (`reasoning`, `code`, `anti_deception`, `memory`) are available on all tiers including the 30-day free trial. Four adaptive closures (`adaptive_reasoning`, `adaptive_code`, `adaptive_anti_deception`, `adaptive_memory`) additionally run an adapter LLM that rewrites the matched operation with task-specific identifiers; they require the Go or Super tier.
 
 AutoGen reads `func.__name__` as the LLM-facing tool name. Python identifiers cannot contain hyphens, so the closure symbols here use underscores; the on-wire API mode strings stay hyphenated (`anti-deception`, `adaptive-anti-deception`). The translation lives inside each closure.

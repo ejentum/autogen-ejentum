@@ -13,14 +13,30 @@ from autogen_ejentum._api import call_logic_api
 API_URL = "https://example.test/api/"
 
 
+# Closure-index -> (Python __name__, on-wire mode string). AutoGen uses
+# func.__name__ as the LLM-facing tool name; Python identifiers cannot
+# contain hyphens, so closure symbols use underscores. The on-wire mode
+# string sent in the POST body stays hyphenated.
+INDEX_TO_NAME_AND_MODE = [
+    (0, "reasoning", "reasoning"),
+    (1, "code", "code"),
+    (2, "anti_deception", "anti-deception"),
+    (3, "memory", "memory"),
+    (4, "adaptive_reasoning", "adaptive-reasoning"),
+    (5, "adaptive_code", "adaptive-code"),
+    (6, "adaptive_anti_deception", "adaptive-anti-deception"),
+    (7, "adaptive_memory", "adaptive-memory"),
+]
+
+
 # ---------------------------------------------------------------------------
 # Factory contract
 # ---------------------------------------------------------------------------
 
 
-def test_factory_returns_four_async_callables():
+def test_factory_returns_eight_async_callables():
     tools = ejentum_tools()
-    assert len(tools) == 4
+    assert len(tools) == 8
     for fn in tools:
         assert inspect.iscoroutinefunction(fn)
 
@@ -28,12 +44,8 @@ def test_factory_returns_four_async_callables():
 def test_factory_assigns_expected_function_names():
     tools = ejentum_tools()
     names = [fn.__name__ for fn in tools]
-    assert names == [
-        "harness_reasoning",
-        "harness_code",
-        "harness_anti_deception",
-        "harness_memory",
-    ]
+    expected = [name for _idx, name, _mode in INDEX_TO_NAME_AND_MODE]
+    assert names == expected
 
 
 def test_each_closure_has_google_style_docstring():
@@ -63,20 +75,12 @@ def test_factory_calls_are_independent_instances():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "index,name,mode",
-    [
-        (0, "harness_reasoning", "reasoning"),
-        (1, "harness_code", "code"),
-        (2, "harness_anti_deception", "anti-deception"),
-        (3, "harness_memory", "memory"),
-    ],
-)
+@pytest.mark.parametrize("index,name,mode", INDEX_TO_NAME_AND_MODE)
 @respx.mock
 async def test_each_closure_dispatches_correct_mode(index, name, mode):
     route = respx.post(API_URL).mock(
         return_value=httpx.Response(
-            200, json=[{mode: f"[NEGATIVE GATE] sample {mode} scaffold"}]
+            200, json=[{mode: f"[PROCEDURE] sample {mode} injection"}]
         )
     )
 
@@ -86,12 +90,12 @@ async def test_each_closure_dispatches_correct_mode(index, name, mode):
 
     query = (
         "I noticed drift. This might mean Y. Sharpen: Z."
-        if mode == "memory"
+        if "memory" in mode
         else "sample task"
     )
     result = await fn(query)
 
-    assert f"sample {mode} scaffold" in result
+    assert f"sample {mode} injection" in result
     assert route.call_count == 1
     posted = route.calls.last.request
     body = posted.read().decode()
@@ -103,7 +107,7 @@ async def test_each_closure_dispatches_correct_mode(index, name, mode):
 async def test_explicit_api_key_overrides_env(monkeypatch):
     monkeypatch.setenv("EJENTUM_API_KEY", "env-key")
     respx.post(API_URL).mock(
-        return_value=httpx.Response(200, json=[{"reasoning": "scaffold"}])
+        return_value=httpx.Response(200, json=[{"reasoning": "injection"}])
     )
 
     tools = ejentum_tools(api_key="explicit-key", api_url=API_URL)
@@ -117,7 +121,7 @@ async def test_explicit_api_key_overrides_env(monkeypatch):
 async def test_env_var_is_read_when_api_key_omitted(monkeypatch):
     monkeypatch.setenv("EJENTUM_API_KEY", "env-key")
     respx.post(API_URL).mock(
-        return_value=httpx.Response(200, json=[{"reasoning": "scaffold"}])
+        return_value=httpx.Response(200, json=[{"reasoning": "injection"}])
     )
 
     tools = ejentum_tools(api_url=API_URL)
@@ -263,7 +267,7 @@ async def test_unexpected_response_shape_is_handled():
 
 
 @respx.mock
-async def test_non_string_scaffold_value_is_handled():
+async def test_non_string_injection_value_is_handled():
     respx.post(API_URL).mock(
         return_value=httpx.Response(
             200, json=[{"reasoning": ["not", "a", "string"]}]
